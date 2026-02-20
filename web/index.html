@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sudoku Solver</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background:
+        linear-gradient(135deg, rgba(15,12,41,0.82), rgba(48,43,99,0.82), rgba(36,36,62,0.82)),
+        url('bg.jpg') center/cover no-repeat fixed;
+      background-color: #0f0c29;
+      min-height: 100vh;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 10px;
+    }
+
+    h1 { font-size: 2.4rem; letter-spacing: 2px; margin-bottom: 4px; }
+    .subtitle { font-size: 0.95rem; color: #aaa; margin-bottom: 28px; }
+
+    /* ---- Tab bar ---- */
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 28px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 2px solid #555;
+    }
+    .tab {
+      padding: 14px 32px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      background: #1a1a2e;
+      color: #aaa;
+      border: none;
+      transition: background 0.2s, color 0.2s;
+    }
+    .tab:hover { background: #2a2a4e; }
+    .tab.active { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+
+    /* ---- Panels ---- */
+    .panel { display: none; flex-direction: column; align-items: center; }
+    .panel.active { display: flex; }
+
+    /* ---- Board ---- */
+    .board {
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      border: 3px solid #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #1a1a2e;
+    }
+
+    .cell {
+      width: 52px; height: 52px;
+      text-align: center;
+      font-size: 1.35rem;
+      font-weight: 600;
+      border: 1px solid #333;
+      background: #16213e;
+      color: #e0e0e0;
+      outline: none;
+      caret-color: #00d2ff;
+      transition: background 0.25s, color 0.25s;
+    }
+    .cell:focus { background: #1a1a40; box-shadow: inset 0 0 8px rgba(0,210,255,.4); }
+    .cell.given   { color: #00d2ff; background: #0f3460; }
+    .cell.solved  { color: #7fff7f; }
+    .cell.error   { color: #ff5555; background: #3b1111; }
+    .cell[readonly] { cursor: default; }
+
+    /* ---- Buttons ---- */
+    .controls { margin-top: 20px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+    button {
+      padding: 12px 28px;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    button:active { transform: scale(0.96); }
+    button:hover  { box-shadow: 0 4px 20px rgba(0,0,0,.5); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn-solve    { background: linear-gradient(135deg, #00b09b, #96c93d); color: #000; }
+    .btn-clear    { background: linear-gradient(135deg, #e44d26, #f16529); color: #fff; }
+    .btn-generate { background: linear-gradient(135deg, #f7971e, #ffd200); color: #000; }
+    .btn-show     { background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; }
+    .btn-next     { background: linear-gradient(135deg, #36d1dc, #5b86e5); color: #000; }
+
+    /* ---- Options row ---- */
+    .options-row {
+      margin-top: 14px;
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;
+    }
+    .options-row label { color: #ccc; font-size: 0.95rem; }
+    .options-row select {
+      padding: 6px 14px; font-size: 0.95rem; border-radius: 6px;
+      border: none; background: #1a1a2e; color: #fff; cursor: pointer;
+    }
+
+    .status {
+      margin-top: 16px;
+      font-size: 1.05rem;
+      min-height: 1.5em;
+      text-align: center;
+      max-width: 500px;
+    }
+    .status.success { color: #7fff7f; }
+    .status.fail    { color: #ff5555; }
+
+    .mode-desc {
+      margin-bottom: 18px;
+      font-size: 0.92rem;
+      color: #bbb;
+      text-align: center;
+      max-width: 500px;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 520px) {
+      .cell { width: 38px; height: 38px; font-size: 1rem; }
+      h1 { font-size: 1.6rem; }
+      .tab { padding: 10px 18px; font-size: 0.9rem; }
+      button { padding: 10px 18px; font-size: 0.9rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>SUDOKU SOLVER</h1>
+  <p class="subtitle">Backtracking Algorithm</p>
+
+  <!-- ========== Tab bar ========== -->
+  <div class="tabs">
+    <button class="tab active" data-tab="input">Input &amp; Solve</button>
+    <button class="tab" data-tab="random">Random Puzzle</button>
+  </div>
+
+  <!-- ===================== MODE 1 : Input & Solve ===================== -->
+  <div class="panel active" id="panel-input">
+    <p class="mode-desc">
+      Enter your Sudoku puzzle in the grid below (digits 1-9, leave blanks for empty cells).
+      Click <strong>Solve</strong> to let the backtracking algorithm find the solution.
+    </p>
+    <div class="board" id="board-input"></div>
+    <div class="controls">
+      <button class="btn-solve" onclick="solveInput()">Solve</button>
+      <button class="btn-clear" onclick="clearInput()">Clear</button>
+    </div>
+    <p class="status" id="status-input"></p>
+  </div>
+
+  <!-- ===================== MODE 2 : Random Puzzle ===================== -->
+  <div class="panel" id="panel-random">
+    <p class="mode-desc">
+      A random Sudoku puzzle with <strong>exactly one solution</strong>.
+      Try solving it yourself, or click <strong>Show Solution</strong> to reveal the answer found by the algorithm.
+    </p>
+    <div class="board" id="board-random"></div>
+
+    <div class="options-row">
+      <label for="diff">Difficulty:</label>
+      <select id="diff">
+        <option value="easy">Easy (~36 clues)</option>
+        <option value="medium" selected>Medium (~28 clues)</option>
+        <option value="hard">Hard (~22 clues)</option>
+      </select>
+    </div>
+
+    <div class="controls">
+      <button class="btn-generate" onclick="generateNew()">Generate Puzzle</button>
+      <button class="btn-show" id="btnShowSol" onclick="showSolution()" disabled>Show Solution</button>
+    </div>
+    <p class="status" id="status-random"></p>
+  </div>
+
+<!-- ================================================================ -->
+<script>
+/* ================================================================
+   TAB SWITCHING
+   ================================================================ */
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+  });
+});
+
+/* ================================================================
+   BUILD GRIDS (one for each mode)
+   ================================================================ */
+function buildGrid(containerId) {
+  const el = document.getElementById(containerId);
+  const arr = [];
+  for (let i = 0; i < 81; i++) {
+    const inp = document.createElement('input');
+    inp.className = 'cell';
+    inp.maxLength = 1;
+    inp.setAttribute('inputmode', 'numeric');
+
+    const r = Math.floor(i / 9), c = i % 9;
+    if (c === 3 || c === 6) inp.style.borderLeft = '3px solid #fff';
+    if (r === 2 || r === 5) inp.style.borderBottom = '3px solid #fff';
+
+    el.appendChild(inp);
+    arr.push(inp);
+  }
+  return arr;
+}
+
+const cellsInput  = buildGrid('board-input');
+const cellsRandom = buildGrid('board-random');
+
+// Allow typing only in the Input grid
+cellsInput.forEach((inp, idx) => {
+  inp.addEventListener('input', e => {
+    const v = e.target.value;
+    if (!/^[1-9]$/.test(v)) { e.target.value = ''; return; }
+    e.target.classList.remove('solved','error');
+    e.target.classList.add('given');
+    if (idx < 80) cellsInput[idx + 1].focus();
+  });
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Backspace' && !e.target.value && idx > 0) cellsInput[idx - 1].focus();
+    if (e.key === 'ArrowRight' && idx < 80)    cellsInput[idx + 1].focus();
+    if (e.key === 'ArrowLeft'  && idx > 0)     cellsInput[idx - 1].focus();
+    if (e.key === 'ArrowDown'  && idx + 9 <= 80) cellsInput[idx + 9].focus();
+    if (e.key === 'ArrowUp'    && idx - 9 >= 0)  cellsInput[idx - 9].focus();
+  });
+});
+
+/* ================================================================
+   BOARD HELPERS
+   ================================================================ */
+function readGrid(cells) {
+  const board = [];
+  for (let r = 0; r < 9; r++) {
+    const row = [];
+    for (let c = 0; c < 9; c++) row.push(cells[r * 9 + c].value || '.');
+    board.push(row);
+  }
+  return board;
+}
+
+function writeGrid(cells, board, solvedMask) {
+  for (let r = 0; r < 9; r++)
+    for (let c = 0; c < 9; c++) {
+      const inp = cells[r * 9 + c];
+      inp.value = board[r][c] === '.' ? '' : board[r][c];
+      if (solvedMask && solvedMask[r][c]) inp.classList.add('solved');
+    }
+}
+
+function loadPuzzleIntoGrid(cells, puzzleRows) {
+  cells.forEach(inp => { inp.value = ''; inp.className = 'cell'; inp.readOnly = true; });
+  for (let r = 0; r < 9; r++)
+    for (let c = 0; c < 9; c++) {
+      const ch = puzzleRows[r][c];
+      if (ch !== '.') {
+        const inp = cells[r * 9 + c];
+        inp.value = ch;
+        inp.classList.add('given');
+      }
+    }
+}
+
+/* ================================================================
+   SOLVER (backtracking — same as the C++ version)
+   ================================================================ */
+function isSafe(board, row, col, dig) {
+  for (let j = 0; j < 9; j++) if (board[row][j] === dig) return false;
+  for (let i = 0; i < 9; i++) if (board[i][col] === dig) return false;
+  const sr = Math.floor(row / 3) * 3, sc = Math.floor(col / 3) * 3;
+  for (let i = sr; i < sr + 3; i++)
+    for (let j = sc; j < sc + 3; j++)
+      if (board[i][j] === dig) return false;
+  return true;
+}
+
+function solve(board, row, col) {
+  if (row === 9) return true;
+  let nr = row, nc = col + 1;
+  if (nc === 9) { nr = row + 1; nc = 0; }
+  if (board[row][col] !== '.') return solve(board, nr, nc);
+  for (let d = 1; d <= 9; d++) {
+    const ch = String(d);
+    if (isSafe(board, row, col, ch)) {
+      board[row][col] = ch;
+      if (solve(board, nr, nc)) return true;
+      board[row][col] = '.';
+    }
+  }
+  return false;
+}
+
+/* ================================================================
+   MODE 1 : INPUT & SOLVE
+   ================================================================ */
+const statusInput = document.getElementById('status-input');
+
+function solveInput() {
+  statusInput.textContent = '';
+  statusInput.className = 'status';
+
+  const board = readGrid(cellsInput);
+  const wasEmpty = board.map(r => r.map(c => c === '.'));
+
+  const t0 = performance.now();
+  const ok = solve(board, 0, 0);
+  const ms = (performance.now() - t0).toFixed(1);
+
+  if (ok) {
+    writeGrid(cellsInput, board, wasEmpty);
+    statusInput.textContent = 'Solved in ' + ms + ' ms';
+    statusInput.className = 'status success';
+  } else {
+    statusInput.textContent = 'No solution exists for this board.';
+    statusInput.className = 'status fail';
+  }
+}
+
+function clearInput() {
+  cellsInput.forEach(inp => { inp.value = ''; inp.className = 'cell'; inp.readOnly = false; });
+  statusInput.textContent = '';
+  statusInput.className = 'status';
+  cellsInput[0].focus();
+}
+
+/* ================================================================
+   RANDOM PUZZLE GENERATOR
+   ================================================================ */
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function solveRandom(board, row, col) {
+  if (row === 9) return true;
+  let nr = row, nc = col + 1;
+  if (nc === 9) { nr = row + 1; nc = 0; }
+  if (board[row][col] !== '.') return solveRandom(board, nr, nc);
+  const digits = shuffle(['1','2','3','4','5','6','7','8','9']);
+  for (const ch of digits) {
+    if (isSafe(board, row, col, ch)) {
+      board[row][col] = ch;
+      if (solveRandom(board, nr, nc)) return true;
+      board[row][col] = '.';
+    }
+  }
+  return false;
+}
+
+function countSolutions(board, row, col, count) {
+  if (row === 9) return count + 1;
+  let nr = row, nc = col + 1;
+  if (nc === 9) { nr = row + 1; nc = 0; }
+  if (board[row][col] !== '.') return countSolutions(board, nr, nc, count);
+  for (let d = 1; d <= 9; d++) {
+    const ch = String(d);
+    if (isSafe(board, row, col, ch)) {
+      board[row][col] = ch;
+      count = countSolutions(board, nr, nc, count);
+      board[row][col] = '.';
+      if (count >= 2) return count;
+    }
+  }
+  return count;
+}
+
+function generatePuzzle(clues) {
+  // 1. Build a complete solved board with randomised digits
+  const full = Array.from({ length: 9 }, () => Array(9).fill('.'));
+  solveRandom(full, 0, 0);
+
+  // 2. Remove cells while keeping a unique solution
+  const puzzle = full.map(r => [...r]);
+  const positions = shuffle([...Array(81).keys()]);
+  let remaining = 81;
+
+  for (const pos of positions) {
+    if (remaining <= clues) break;
+    const r = Math.floor(pos / 9), c = pos % 9;
+    const backup = puzzle[r][c];
+    puzzle[r][c] = '.';
+    const copy = puzzle.map(row => [...row]);
+    if (countSolutions(copy, 0, 0, 0) !== 1) {
+      puzzle[r][c] = backup;   // put back — removal breaks uniqueness
+    } else {
+      remaining--;
+    }
+  }
+  return { puzzle, solution: full };
+}
+
+/* ================================================================
+   MODE 2 : RANDOM PUZZLE  —  Display / Show Solution
+   ================================================================ */
+const statusRandom = document.getElementById('status-random');
+const btnShowSol   = document.getElementById('btnShowSol');
+let currentSolution = null;
+let currentPuzzle   = null;
+
+function displayRandomPuzzle(puzzleRows, solution, label) {
+  currentPuzzle   = puzzleRows;
+  currentSolution = solution;
+  loadPuzzleIntoGrid(cellsRandom, puzzleRows);
+  btnShowSol.disabled = false;
+  statusRandom.textContent = label;
+  statusRandom.className = 'status';
+}
+
+function generateNew() {
+  const diff  = document.getElementById('diff').value;
+  const clueMap = { easy: 36, medium: 28, hard: 22 };
+  const clues = clueMap[diff] || 28;
+
+  statusRandom.textContent = 'Generating puzzle...';
+  statusRandom.className = 'status';
+  btnShowSol.disabled = true;
+
+  // setTimeout lets the UI repaint before the blocking work
+  setTimeout(() => {
+    const t0 = performance.now();
+    const { puzzle, solution } = generatePuzzle(clues);
+    const ms = (performance.now() - t0).toFixed(0);
+
+    const puzzleRows = puzzle.map(r => [...r]);
+    let actual = 0;
+    puzzleRows.forEach(r => r.forEach(c => { if (c !== '.') actual++; }));
+
+    displayRandomPuzzle(puzzleRows, solution,
+      'Random ' + diff + ' puzzle (' + actual + ' clues) generated in ' + ms + ' ms — try solving it!');
+  }, 30);
+}
+
+function showSolution() {
+  if (!currentSolution || !currentPuzzle) return;
+
+  const wasEmpty = currentPuzzle.map(r => r.map(c => c === '.'));
+  writeGrid(cellsRandom, currentSolution, wasEmpty);
+  cellsRandom.forEach(inp => inp.readOnly = true);
+
+  statusRandom.textContent = 'Solution revealed (solved by backtracking algorithm). Click Generate Puzzle for a new one!';
+  statusRandom.className = 'status success';
+  btnShowSol.disabled = true;
+}
+
+// Auto-generate a puzzle on page load
+generateNew();
+</script>
+
+</body>
+</html>
