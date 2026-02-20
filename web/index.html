@@ -225,23 +225,36 @@ function buildGrid(containerId) {
 const cellsInput  = buildGrid('board-input');
 const cellsRandom = buildGrid('board-random');
 
-// Allow typing only in the Input grid
-cellsInput.forEach((inp, idx) => {
-  inp.addEventListener('input', e => {
-    const v = e.target.value;
-    if (!/^[1-9]$/.test(v)) { e.target.value = ''; return; }
-    e.target.classList.remove('solved','error');
-    e.target.classList.add('given');
-    if (idx < 80) cellsInput[idx + 1].focus();
+// Attach input & keyboard handlers to both grids
+function attachHandlers(cells) {
+  cells.forEach((inp, idx) => {
+    inp.addEventListener('input', e => {
+      if (inp.readOnly) { e.target.value = ''; return; }
+      const v = e.target.value;
+      if (!/^[1-9]$/.test(v)) { e.target.value = ''; return; }
+      e.target.classList.remove('solved','error');
+      e.target.classList.add('given');
+      // auto-advance to next editable cell
+      for (let n = idx + 1; n < 81; n++) {
+        if (!cells[n].readOnly) { cells[n].focus(); break; }
+      }
+    });
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !e.target.value) {
+        for (let n = idx - 1; n >= 0; n--) {
+          if (!cells[n].readOnly) { cells[n].focus(); break; }
+        }
+      }
+      if (e.key === 'ArrowRight' && idx < 80)      cells[idx + 1].focus();
+      if (e.key === 'ArrowLeft'  && idx > 0)       cells[idx - 1].focus();
+      if (e.key === 'ArrowDown'  && idx + 9 <= 80) cells[idx + 9].focus();
+      if (e.key === 'ArrowUp'    && idx - 9 >= 0)  cells[idx - 9].focus();
+    });
   });
-  inp.addEventListener('keydown', e => {
-    if (e.key === 'Backspace' && !e.target.value && idx > 0) cellsInput[idx - 1].focus();
-    if (e.key === 'ArrowRight' && idx < 80)    cellsInput[idx + 1].focus();
-    if (e.key === 'ArrowLeft'  && idx > 0)     cellsInput[idx - 1].focus();
-    if (e.key === 'ArrowDown'  && idx + 9 <= 80) cellsInput[idx + 9].focus();
-    if (e.key === 'ArrowUp'    && idx - 9 >= 0)  cellsInput[idx - 9].focus();
-  });
-});
+}
+
+attachHandlers(cellsInput);
+attachHandlers(cellsRandom);
 
 /* ================================================================
    BOARD HELPERS
@@ -266,14 +279,15 @@ function writeGrid(cells, board, solvedMask) {
 }
 
 function loadPuzzleIntoGrid(cells, puzzleRows) {
-  cells.forEach(inp => { inp.value = ''; inp.className = 'cell'; inp.readOnly = true; });
+  cells.forEach(inp => { inp.value = ''; inp.className = 'cell'; inp.readOnly = false; });
   for (let r = 0; r < 9; r++)
     for (let c = 0; c < 9; c++) {
       const ch = puzzleRows[r][c];
+      const inp = cells[r * 9 + c];
       if (ch !== '.') {
-        const inp = cells[r * 9 + c];
         inp.value = ch;
         inp.classList.add('given');
+        inp.readOnly = true;   // only given cells are locked
       }
     }
 }
